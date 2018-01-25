@@ -2,8 +2,11 @@ package cli
 
 import (
 	"context"
+	"encoding/json"
+	"errors"
 	"github.com/drewsonne/go-gocd/gocd"
 	"github.com/urfave/cli"
+	"io/ioutil"
 	"strings"
 )
 
@@ -13,6 +16,8 @@ const (
 	ListEnvironmentsCommandUsage               = "List all environments"
 	GetEnvironmentCommandName                  = "get-environment"
 	GetEnvironmentCommandUsage                 = "Get an environment by name"
+	PatchEnvironmentCommandName                = "patch-environment"
+	PatchEnvironmentCommandUsage               = "patch an environment by name"
 	AddPipelinesToEnvironmentCommandName       = "add-pipelines-to-environment"
 	AddPipelinesToEnvironmentCommandUsage      = "Add one or more pipelines to an environment"
 	RemovePipelinesFromEnvironmentCommandName  = "remove-pipelines-from-environment"
@@ -39,6 +44,43 @@ func getEnvironmentAction(client *gocd.Client, c *cli.Context) (r interface{}, r
 		e.RemoveLinks()
 	}
 	return e, resp, err
+}
+
+// patchEnvironmentAction handles the patching of an environment
+func patchEnvironmentAction(client *gocd.Client, c *cli.Context) (r interface{}, resp *gocd.APIResponse, err error) {
+	var name string
+
+	if name = c.String("name"); name == "" {
+		return nil, nil, NewFlagError("name")
+	}
+
+	patch := c.String("patch")
+	patchFile := c.String("patch-file")
+	if patch == "" && patchFile == "" {
+		return nil, nil, errors.New("One of '--patch-file' or '--patch' must be specified")
+	}
+
+	if patch != "" && patchFile != "" {
+		return nil, nil, errors.New("Only one of '--patch-file' or '--patch' can be specified")
+	}
+
+	var pf []byte
+	if patchFile != "" {
+		pf, err = ioutil.ReadFile(patchFile)
+		if err != nil {
+			return nil, nil, err
+		}
+	} else {
+		pf = []byte(patch)
+	}
+	p := &gocd.EnvironmentPatchRequest{}
+
+	err = json.Unmarshal(pf, &p)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return client.Environments.Patch(context.Background(), name, p)
 }
 
 // AddPipelinesToEnvironmentAction handles the adding of a pipeline to an environment
@@ -105,6 +147,21 @@ func getEnvironmentCommand() *cli.Command {
 		Category: "Environments",
 		Flags: []cli.Flag{
 			cli.StringFlag{Name: "name"},
+		},
+	}
+}
+
+// GetEnvironmentCommand handles definition of cli command
+func patchEnvironmentCommand() *cli.Command {
+	return &cli.Command{
+		Name:     PatchEnvironmentCommandName,
+		Usage:    PatchEnvironmentCommandUsage,
+		Action:   ActionWrapper(patchEnvironmentAction),
+		Category: "Environments",
+		Flags: []cli.Flag{
+			cli.StringFlag{Name: "name"},
+			cli.StringFlag{Name: "patch"},
+			cli.StringFlag{Name: "patch-file"},
 		},
 	}
 }

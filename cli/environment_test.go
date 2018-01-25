@@ -10,6 +10,7 @@ func TestEnvironment(t *testing.T) {
 	for _, envCmd := range []cli.Command{
 		*listEnvironmentsCommand(),
 		*getEnvironmentCommand(),
+		*patchEnvironmentCommand(),
 		*addPipelinesToEnvironmentCommand(),
 		*removePipelinesFromEnvironmentCommand(),
 	} {
